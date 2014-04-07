@@ -1,28 +1,22 @@
 package org.ops4j.pax.runner.daemon;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintWriter;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.security.AccessControlException;
-import java.security.NoSuchAlgorithmException;
-import java.util.Properties;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.ops4j.net.Base64Encoder;
 import org.ops4j.pax.runner.CommandLine;
 import org.ops4j.pax.runner.CommandLineImpl;
 import org.ops4j.pax.runner.Run;
+import org.ops4j.pax.runner.commons.StandardCharsets;
+import org.ops4j.pax.runner.commons.StringUtils;
 import org.ops4j.pax.runner.platform.DefaultJavaRunner;
 import org.ops4j.pax.runner.platform.StoppableJavaRunner;
+
+import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.security.AccessControlException;
+import java.security.NoSuchAlgorithmException;
+import java.util.Properties;
 
 /**
  * The class that runs as Daemon for the Pax Runner. The {@link DaemonLauncher}
@@ -172,8 +166,8 @@ public class Daemon {
             return null;
         }
         d.reset();
-        d.update(message.getBytes());
-        return new String(Base64Encoder.encode(d.digest()));
+        d.update(StringUtils.getBytesUtf8(message));
+        return StringUtils.newStringUtf8(Base64Encoder.encode(d.digest()));
     }
 
     /**
@@ -476,7 +470,8 @@ public class Daemon {
                             socket.setSoTimeout(networkTimeout);
                             LOG.trace("Connected.");
                             stream = socket.getInputStream();
-                            out = new PrintWriter(socket.getOutputStream(), true);
+                            out = new PrintWriter(new BufferedWriter(new OutputStreamWriter(
+                                    socket.getOutputStream(), StandardCharsets.UTF_8)), true);
                         } catch (AccessControlException ace) {
                             LOG.warn("StandardServer.accept security exception: "
                                                + ace.getMessage(), ace);
@@ -583,22 +578,22 @@ public class Daemon {
          * @return the command that was issued in the input stream.
          */
         private String readStream(final InputStream stream) {
-            StringBuffer command = new StringBuffer();
-            int expected = 1024; // Cut off to avoid DoS attack
-            while (stream!=null && expected > 0) {
-                int ch = -1;
+            byte[] chs = new byte[128];   // Cut off to avoid DoS attack
+            int n;
+            for (n = 0; n < chs.length; n++) {
+                int ch;
                 try {
                     ch = stream.read();
                 } catch (IOException e) {
-                    ch = -1;
-                }
-                if (ch < 32) { // Control character or EOF terminates loop
                     break;
                 }
-                command.append((char) ch);
-                expected--;
+                // Assume that stream uses an ISO derived encoding
+                if (Character.isISOControl(ch)) {
+                    break;
+                }
+                chs[n] = (byte) ch;
             }
-            return command.toString();
+            return StringUtils.newStringUtf8(chs, 0, n);
         }
     }
 

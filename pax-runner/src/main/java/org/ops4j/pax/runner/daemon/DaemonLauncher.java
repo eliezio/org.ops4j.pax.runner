@@ -13,6 +13,7 @@ import org.ops4j.pax.runner.CommandLine;
 import org.ops4j.pax.runner.CommandLineImpl;
 import org.ops4j.pax.runner.Run;
 import org.ops4j.pax.runner.User;
+import org.ops4j.pax.runner.commons.StandardCharsets;
 
 /**
  * An entry point to start and stop the Daemon from the CLI. Based on the
@@ -147,7 +148,8 @@ public class DaemonLauncher {
             PrintWriter out = null;
             try {
                 socket = new Socket("localhost", Daemon.getShutdownPort());
-                out = new PrintWriter(socket.getOutputStream(), true);
+                out = new PrintWriter(new BufferedWriter(new OutputStreamWriter(
+                        socket.getOutputStream(), StandardCharsets.UTF_8)), true);
             } catch (UnknownHostException e) {
                 LOG.error("Unknown address: localhost.");
                 return;
